@@ -350,6 +350,72 @@ df['is_weekend'] = df.index.dayofweek >= 5
     print("df['value_lag30min'] = df['value'].shift(6)")
     df_time['value_lag30min'] = df_time['value'].shift(6)
     
+    # ケース6: 別々の日時・時刻列を1つのタイムスタンプに結合
+    print("\n■ ケース6: 日時・時刻列の結合")
+    
+    # サンプルデータ作成（日時と時刻が別々）
+    sample_datetime_data = pd.DataFrame({
+        '日時': ['2025/06/12', '2025/06/12', '2025/06/13', '2025/06/13'],
+        '時刻': ['8:00:00', '14:30:00', '9:15:00', '16:45:00'],
+        'temperature': [85.2, 87.1, 84.8, 86.3]
+    })
+    
+    print("# 元データ:")
+    print(sample_datetime_data)
+    
+    print("\n# 方法1: 文字列結合してから変換")
+    print("df['timestamp'] = pd.to_datetime(df['日時'] + ' ' + df['時刻'])")
+    sample_datetime_data['timestamp'] = pd.to_datetime(sample_datetime_data['日時'] + ' ' + sample_datetime_data['時刻'])
+    print("結果:")
+    print(sample_datetime_data[['timestamp', 'temperature']])
+    
+    print("\n# 方法2: pd.to_datetimeで複数列を指定")
+    sample_datetime_data2 = pd.DataFrame({
+        'year': [2025, 2025, 2025],
+        'month': [6, 6, 6],
+        'day': [12, 12, 13],
+        'hour': [8, 14, 9],
+        'minute': [0, 30, 15],
+        'temperature': [85.2, 87.1, 84.8]
+    })
+    print("df['timestamp'] = pd.to_datetime(df[['year', 'month', 'day', 'hour', 'minute']])")
+    sample_datetime_data2['timestamp'] = pd.to_datetime(sample_datetime_data2[['year', 'month', 'day', 'hour', 'minute']])
+    print("結果:")
+    print(sample_datetime_data2[['timestamp', 'temperature']])
+    
+    print("\n# 方法3: combine関数を使用")
+    sample_datetime_data3 = pd.DataFrame({
+        'date': pd.to_datetime(['2025/06/12', '2025/06/13', '2025/06/14']),
+        'time': pd.to_datetime(['8:00:00', '14:30:00', '9:15:00'], format='%H:%M:%S').dt.time,
+        'temperature': [85.2, 87.1, 84.8]
+    })
+    print("df['timestamp'] = df['date'].dt.date + pd.to_timedelta(df['time'].astype(str))")
+    # より簡単な方法
+    print("# または")
+    print("df['timestamp'] = pd.to_datetime(df['date'].dt.strftime('%Y-%m-%d') + ' ' + df['time'].astype(str))")
+    sample_datetime_data3['timestamp'] = pd.to_datetime(
+        sample_datetime_data3['date'].dt.strftime('%Y-%m-%d') + ' ' + 
+        sample_datetime_data3['time'].astype(str)
+    )
+    print("結果:")
+    print(sample_datetime_data3[['timestamp', 'temperature']])
+    
+    print("\n# よくある問題と解決方法:")
+    print("🔸 異なる日時形式の場合:")
+    mixed_format_data = pd.DataFrame({
+        'date_col': ['2025-06-12', '06/13/2025', '2025/6/14'],
+        'time_col': ['08:00', '2:30 PM', '09:15:30'],
+        'value': [1, 2, 3]
+    })
+    print("# 形式を統一してから結合")
+    print("df['date_normalized'] = pd.to_datetime(df['date_col']).dt.strftime('%Y-%m-%d')")
+    print("df['time_normalized'] = pd.to_datetime(df['time_col'], format='mixed').dt.strftime('%H:%M:%S')")
+    print("df['timestamp'] = pd.to_datetime(df['date_normalized'] + ' ' + df['time_normalized'])")
+    
+    print("\n🔸 欠損値がある場合:")
+    print("df['timestamp'] = pd.to_datetime(df['日時'] + ' ' + df['時刻'], errors='coerce')")
+    print("# errors='coerce'で変換できない値はNaTになります")
+    
     return df_time
 
 # =============================================================================
