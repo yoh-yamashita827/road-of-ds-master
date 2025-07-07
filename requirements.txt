@@ -1,10 +1,49 @@
+# データ探索分析に必要なライブラリ
+# 基本ライブラリ
 pandas>=1.5.0
 numpy>=1.21.0
 matplotlib>=3.5.0
 seaborn>=0.11.0
+
+# 統計・科学計算
+scipy>=1.9.0
+statsmodels>=0.13.0
 scikit-learn>=1.1.0
+
+# 可視化
+plotly>=5.10.0
+japanize-matplotlib>=1.1.3
+
+# 機械学習・最適化
 xgboost>=1.6.0
-tensorflow>=2.10.0
+lightgbm>=3.3.0
 optuna>=3.0.0
-jupyter>=1.0.0
-plotly>=5.0.0 
+
+# 時系列分析
+pytz>=2022.1
+
+# ユーティリティ
+tqdm>=4.64.0
+warnings
+
+# オプション（高度な分析用）
+# 異常検知
+pyod>=1.0.0
+
+# 特徴量選択
+feature-engine>=1.4.0
+
+# インタラクティブ可視化
+ipywidgets>=8.0.0
+
+# データ品質
+great-expectations>=0.15.0
+
+# より高度な時系列分析
+prophet>=1.1.0
+
+# ネットワーク分析（変数間関係）
+networkx>=2.8.0
+
+# 高度な統計
+pingouin>=0.5.0 
