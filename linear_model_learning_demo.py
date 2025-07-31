@@ -407,16 +407,17 @@ def plot_simple_learning_result():
     plt.figure(figsize=(10, 8))
     
     # データと学習結果の表示
-    plt.scatter(model.X, model.y, alpha=0.7, color='blue', s=60, zorder=3)
+    plt.scatter(model.X, model.y, alpha=0.7, color='blue', s=60, label='実データ', zorder=3)
     
     # 学習された関数のみ
     x_line = np.linspace(-2, 2, 100)
     y_learned = model.predict(x_line)
-    plt.plot(x_line, y_learned, 'r-', linewidth=3, zorder=2)
+    plt.plot(x_line, y_learned, 'r-', linewidth=3, label='学習結果', zorder=2)
     
     plt.xlabel('x', fontsize=14)
     plt.ylabel('y', fontsize=14)
     plt.title('ソフトセンサーの学習イメージ', fontsize=16, fontweight='bold')
+    plt.legend(fontsize=12)
     plt.grid(True, alpha=0.3)
     
     plt.tight_layout()
