@@ -1,133 +1,143 @@
-' クリップボード取得用のAPI宣言
+'--------------------------------------------------------
+' Windows Excel 用：名刺情報 → Q列から各列に展開
+'--------------------------------------------------------
+
+' クリップボード取得API（Windows）
 #If VBA7 Then
     Private Declare PtrSafe Function OpenClipboard Lib "user32" (ByVal hwnd As LongPtr) As Long
-    Private Declare PtrSafe Function GetClipboardData Lib "user32" (ByVal uFormat As Long) As LongPtr
     Private Declare PtrSafe Function CloseClipboard Lib "user32" () As Long
+    Private Declare PtrSafe Function GetClipboardData Lib "user32" (ByVal uFormat As Long) As LongPtr
     Private Declare PtrSafe Function GlobalLock Lib "kernel32" (ByVal hMem As LongPtr) As LongPtr
     Private Declare PtrSafe Function GlobalUnlock Lib "kernel32" (ByVal hMem As LongPtr) As Long
 #Else
     Private Declare Function OpenClipboard Lib "user32" (ByVal hwnd As Long) As Long
-    Private Declare Function GetClipboardData Lib "user32" (ByVal uFormat As Long) As Long
     Private Declare Function CloseClipboard Lib "user32" () As Long
+    Private Declare Function GetClipboardData Lib "user32" (ByVal uFormat As Long) As Long
     Private Declare Function GlobalLock Lib "kernel32" (ByVal hMem As Long) As Long
     Private Declare Function GlobalUnlock Lib "kernel32" (ByVal hMem As Long) As Long
 #End If
 
 Const CF_TEXT = 1
 
-Function GetClipboardText() As String
-    Dim hClipMemory As LongPtr
-    Dim lpClipMemory As LongPtr
-    Dim ClipText As String
 
-    If OpenClipboard(0&) Then
-        hClipMemory = GetClipboardData(CF_TEXT)
-        If hClipMemory <> 0 Then
-            lpClipMemory = GlobalLock(hClipMemory)
-            If lpClipMemory <> 0 Then
-                ClipText = VBA.Strings.StrConv(VBA.Strings.StrConv( _
-                    VBA.Strings.Space$(65535), vbFromUnicode _
-                ), vbUnicode)
-                ClipText = VBA.Strings.StrConv( _
-                    VBA.Strings.StrConv(StrPtr(lpClipMemory), vbUnicode), vbFromUnicode)
-                GlobalUnlock hClipMemory
+'--- クリップボードの文字列を取得 ---
+Function GetClipboardTextWindows() As String
+    Dim hClip As LongPtr
+    Dim pText As LongPtr
+    Dim s As String
+
+    If OpenClipboard(0) Then
+        hClip = GetClipboardData(CF_TEXT)
+        If hClip <> 0 Then
+            pText = GlobalLock(hClip)
+            If pText <> 0 Then
+                s = StrConv(StrConv(pText, vbUnicode), vbFromUnicode)
+                GlobalUnlock hClip
             End If
         End If
         CloseClipboard
     End If
 
-    GetClipboardText = ClipText
+    GetClipboardTextWindows = s
 End Function
 
 
-' ======= メイン処理 =======
-Sub PasteBusinessCardData()
+'--------------------------------------------------------
+' メイン処理：Q列から自動展開
+'--------------------------------------------------------
+Sub PasteBusinessCard_Q()
 
     Dim text As String
     Dim lines As Variant
-    Dim i As Long
+    Dim idx As Long
+    Dim row As Long
+    
+    ' Q列 = 17列目
+    Const START_COL As Long = 17
 
-    ' クリップボードの内容を取得
-    text = GetClipboardText()
+    text = GetClipboardTextWindows()
 
-    If text = "" Then
-        MsgBox "クリップボードが空です"
+    If Trim(text) = "" Then
+        MsgBox "クリップボードが空です。"
         Exit Sub
     End If
 
-    ' 行ごとに分割
     lines = Split(text, vbCrLf)
+    row = ActiveCell.Row
+    idx = 0
 
-    ' ===== データの割り当て =====
-    ' 想定フォーマット：
-    ' 1:会社名
-    ' 2:役職 所属
-    ' 3:氏名
-    '
-    ' 空行
-    ' 電話番号
-    ' FAX（無い場合はスキップ）
-    ' メールアドレス
-    '
-    ' [住所]
-    ' 郵便番号
-    ' 住所
-    ' 
-    ' リンク
-    ' ＝＝＝＝＝＝＝＝＝＝
+    '--------------------------------------------------------
+    ' 基本3行：会社名 / 役職 所属 / 氏名
+    '--------------------------------------------------------
+    Cells(row, START_COL).Value = Trim(lines(idx)) '会社名
+    idx = idx + 1
 
-    Dim row As Long: row = ActiveCell.Row
-
-    '---- 上部情報 ----
-    Cells(row, 1).Value = lines(0) '会社名
-
-    ' 役職と所属を分割（スペース区切り）
-    Dim pos_dept() As String
-    pos_dept = Split(lines(1), " ")
-
-    '役職
-    Cells(row, 3).Value = pos_dept(0)
-
-    '所属（役職が1語の場合）
-    If UBound(pos_dept) >= 1 Then
-        Cells(row, 2).Value = pos_dept(1)
+    '役職 所属
+    Dim posDept As Variant
+    Dim line2 As String
+    line2 = Replace(lines(idx), "　", " ") '全角スペース→半角
+    posDept = Split(Trim(line2), " ")
+    
+    Cells(row, START_COL + 2).Value = posDept(0) '役職（Q+2 = S列）
+    If UBound(posDept) >= 1 Then
+        Cells(row, START_COL + 1).Value = posDept(1) '所属（Q+1 = R列）
     End If
+    idx = idx + 1
 
     '氏名
-    Cells(row, 7).Value = lines(2)
+    Cells(row, START_COL + 6).Value = Trim(lines(idx)) 'W列
+    idx = idx + 1
 
-    '---- 下部情報 ----
-    Dim idx As Long: idx = 4   '4行目から電話番号が始まる
-
-    '空行をスキップ
-    Do While Trim(lines(idx)) = ""
+    '--------------------------------------------------------
+    ' 空行をスキップ
+    '--------------------------------------------------------
+    Do While idx <= UBound(lines) And Trim(lines[idx]) = ""
         idx = idx + 1
     Loop
 
-    Cells(row, 6).Value = lines(idx) '電話番号
+    '--------------------------------------------------------
+    ' 電話番号
+    '--------------------------------------------------------
+    Cells(row, START_COL + 5).Value = Trim(lines(idx)) 'V列
     idx = idx + 1
 
-    'FAXがある場合
-    If InStr(lines(idx), "@") = 0 Then 'メールでなければFAX
+    '--------------------------------------------------------
+    ' FAX があれば入れる（なければスキップ）
+    '--------------------------------------------------------
+    If idx <= UBound(lines) And InStr(lines(idx), "@") = 0 Then
+        Cells(row, START_COL + 8).Value = Trim(lines(idx)) 'Y列
         idx = idx + 1
     End If
 
-    'メールアドレス
-    Cells(row, 8).Value = lines(idx)
+    '--------------------------------------------------------
+    ' メールアドレス
+    '--------------------------------------------------------
+    Cells(row, START_COL + 7).Value = Trim(lines(idx)) 'X列
     idx = idx + 1
 
-    ' "[住所]" 行をスキップ
-    If InStr(lines(idx), "住所") > 0 Then
+    '--------------------------------------------------------
+    ' "[住所]" をスキップ
+    '--------------------------------------------------------
+    Do While idx <= UBound(lines) And _
+        (Trim(lines(idx)) = "" Or InStr(lines(idx), "住所") > 0)
         idx = idx + 1
+    Loop
+
+    '郵便番号
+    Cells(row, START_COL + 3).Value = Trim(lines(idx)) 'T列
+    idx = idx + 1
+
+    '住所
+    Cells(row, START_COL + 4).Value = Trim(lines(idx)) 'U列
+    idx = idx + 1
+
+    '--------------------------------------------------------
+    ' リンク（Z列）
+    '--------------------------------------------------------
+    If idx <= UBound(lines) Then
+        Cells(row, START_COL + 9).Value = Trim(lines[idx])
     End If
 
-    ' 郵便番号
-    Cells(row, 4).Value = lines(idx)
-    idx = idx + 1
-
-    ' 住所
-    Cells(row, 5).Value = lines(idx)
-
-    MsgBox "貼り付け完了！"
+    MsgBox "取り込み完了！（Q列から展開しました）"
 
 End Sub
