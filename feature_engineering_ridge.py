@@ -44,12 +44,59 @@ from sklearn.pipeline import Pipeline
 # ユーティリティ
 # ============================================================
 
+def normalize_seconds_to_minutes(index: pd.DatetimeIndex, verbose: bool = True) -> pd.DatetimeIndex:
+    """秒数を分単位に統一（12:01:00, 12:01:16 → 12:01:00）。
+    
+    工場データで秒数が不整合な場合（12:01:00 vs 12:01:16）に、
+    秒数を00に統一して分単位のインデックスに変換します。
+    
+    Args:
+        index: DatetimeIndex
+        verbose: 詳細情報を表示するかどうか
+    """
+    if not isinstance(index, pd.DatetimeIndex):
+        raise ValueError("DatetimeIndex が必要です")
+    
+    if verbose:
+        # 秒数の分布を確認
+        seconds = index.second
+        unique_seconds = sorted(seconds.unique())
+        print(f"🔍 秒数分布: {unique_seconds}")
+        if len(unique_seconds) > 1:
+            print(f"   秒数が不統一です。分単位に統一します。")
+    
+    # 秒数を00に統一
+    normalized = index.floor('min')
+    
+    # 重複があれば最初の値を保持
+    if normalized.duplicated().any():
+        duplicate_count = normalized.duplicated().sum()
+        if verbose:
+            print(f"⚠️  秒数統一後に重複が発生: {duplicate_count}件")
+        # 重複した時刻の最初のデータのみを保持
+        df_temp = pd.DataFrame({'original_index': index, 'normalized': normalized})
+        df_temp = df_temp.groupby('normalized').first()
+        normalized = df_temp['original_index'].floor('min')
+        
+        if verbose:
+            print(f"   重複は最初のデータを保持して解決しました")
+    
+    if verbose:
+        print(f"✅ インデックスを分単位に統一完了")
+    
+    return normalized
+
+
 def ensure_datetime_index(df: pd.DataFrame) -> pd.DataFrame:
     """インデックスが日時でなければ自動検出して設定する。
-
+    
+    秒数の不整合も自動的に解決します。
+    
     Returns: インデックスがDatetimeIndexのDataFrame
     """
     if isinstance(df.index, pd.DatetimeIndex):
+        # 秒数を統一
+        df.index = normalize_seconds_to_minutes(df.index)
         return df
 
     # 候補列を探索
@@ -59,6 +106,8 @@ def ensure_datetime_index(df: pd.DataFrame) -> pd.DataFrame:
             try:
                 df[col] = pd.to_datetime(df[col])
                 df = df.set_index(col)
+                # 秒数を統一
+                df.index = normalize_seconds_to_minutes(df.index)
                 return df
             except Exception:
                 continue
@@ -67,6 +116,8 @@ def ensure_datetime_index(df: pd.DataFrame) -> pd.DataFrame:
     try:
         df.iloc[:, 0] = pd.to_datetime(df.iloc[:, 0])
         df = df.set_index(df.columns[0])
+        # 秒数を統一
+        df.index = normalize_seconds_to_minutes(df.index)
     except Exception:
         raise ValueError("日時インデックスを設定できませんでした。日時列を指定してください。")
     return df
@@ -317,7 +368,21 @@ def main():
     print(f"目的変数: {args.target_col}, horizon: {args.horizon_min}分")
 
     df = pd.read_csv(args.input)
+    
+    # 秒数統一前の情報を表示
+    print(f"\n📊 データ読み込み完了: {df.shape}")
+    if '稼働開始時刻' in df.columns:
+        print(f"稼働期間: {df['稼働開始時刻'].min()} ～ {df['稼働開始時刻'].max()}")
+    
+    # 日時インデックス設定と秒数統一
+    print("\n🕐 日時インデックス設定中...")
     df = ensure_datetime_index(df)
+    
+    # 秒数統一後のインデックス情報を表示
+    print(f"✅ インデックス設定完了")
+    print(f"   期間: {df.index.min()} ～ {df.index.max()}")
+    print(f"   データ数: {len(df)}")
+    print(f"   サンプリング間隔（推定）: {_estimate_nominal_step_minutes(df.index):.1f}分")
 
     # 必要であれば列名マッピングをここで指定（実データに合わせて変更）
     mapping = {
@@ -331,6 +396,7 @@ def main():
         # 'MV': 'your_mv_col',
     }
 
+    print(f"\n🔧 特徴量生成中...")
     X, y = build_feature_matrix(
         df_raw=df,
         target_col=args.target_col,
