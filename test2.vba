@@ -1,3 +1,44 @@
+Option Explicit
+
+' クリップボード → VBA 取得（Windows API使用）
+Private Declare PtrSafe Function OpenClipboard Lib "user32" (ByVal hwnd As LongPtr) As Long
+Private Declare PtrSafe Function CloseClipboard Lib "user32" () As Long
+Private Declare PtrSafe Function GetClipboardData Lib "user32" (ByVal uFormat As Long) As LongPtr
+Private Declare PtrSafe Function GlobalLock Lib "kernel32" (ByVal hMem As LongPtr) As LongPtr
+Private Declare PtrSafe Function GlobalUnlock Lib "kernel32" (ByVal hMem As LongPtr) As Long
+Private Const CF_TEXT As Long = 1
+
+Function GetClipboardText() As String
+    Dim hClip As LongPtr, hMem As LongPtr, lpMem As LongPtr
+    Dim sText As String
+
+    If OpenClipboard(0&) Then
+        hMem = GetClipboardData(CF_TEXT)
+        If hMem <> 0 Then
+            lpMem = GlobalLock(hMem)
+            If lpMem <> 0 Then
+                sText = VBA.Strings.StrConv(VBA.Strings.Space$(VBA.LenB(VBA.Strings.StrPtr(sText))), vbUnicode)
+                sText = VBA.Strings.Space$(0)
+                sText = VBA.Strings.StrConv$(VBA.Strings.Space$(0), vbUnicode)
+                sText = VBA.Strings.StrConv$(VBA.Strings.Space$(0), vbUnicode)
+
+                sText = VBA.Strings.StrConv$(VBA.Strings.Space$(0), vbUnicode)
+                sText = VBA.Strings.StrConv(VBA.Strings.Space$(0), vbUnicode)
+
+                sText = VBA.Strings.StrConv(VBA.Strings.StrConv(lpMem, vbUnicode), vbUnicode)
+            End If
+            GlobalUnlock hMem
+        End If
+        CloseClipboard
+    End If
+
+    GetClipboardText = sText
+End Function
+
+
+'======================
+' メイン処理
+'======================
 Sub PasteContactInfo()
 
     Dim clipboardText As String
@@ -8,14 +49,16 @@ Sub PasteContactInfo()
     Dim company As String, position As String, department As String
     Dim name As String, tel As String, fax As String
     Dim mail As String, zipCode As String, address As String, link As String
-    
-    ' クリップボードから取得
+
     clipboardText = GetClipboardText()
+    If clipboardText = "" Then
+        MsgBox "クリップボードが空です。", vbExclamation
+        Exit Sub
+    End If
+
     lines = Split(clipboardText, vbCrLf)
-    
-    ' 貼り付け開始行（アクティブセルの行）
     row = ActiveCell.Row
-    
+
     ' 初期化
     company = ""
     position = ""
@@ -27,14 +70,12 @@ Sub PasteContactInfo()
     zipCode = ""
     address = ""
     link = ""
-    
+
     '--------- データ解析 ---------
     For i = 0 To UBound(lines)
-        
         Dim s As String
         s = Trim(lines(i))
-        
-        If s = "" Then GoTo ContinueLoop   ' 空行スキップ（構文エラー修正）
+        If s = "" Then GoTo ContinueLoop  ' 空行スキップ
 
         If company = "" Then
             company = s
@@ -51,9 +92,7 @@ Sub PasteContactInfo()
             fax = Trim(Replace(fax, "：", ""))
         ElseIf mail = "" And InStr(s, "@") > 0 Then
             mail = s
-        ElseIf InStr(s, "[住所]") > 0 Then
-            ' 住所ラベルはスキップ
-        ElseIf zipCode = "" And (Left(s, 1) = "〒" Or IsNumeric(Replace(s, "-", ""))) Then
+        ElseIf zipCode = "" And Left(s, 1) = "〒" Then
             zipCode = s
         ElseIf address = "" And (InStr(s, "県") > 0 Or InStr(s, "市") > 0 Or InStr(s, "区") > 0) Then
             address = s
@@ -63,8 +102,8 @@ Sub PasteContactInfo()
 
 ContinueLoop:
     Next i
-    
-    '--------- Excel(Q列〜)に出力 ---------
+
+    '--------- Q列(17列目)に出力 ---------
     With Cells(row, "Q")
         .Value = company
         .Offset(0, 1).Value = department
@@ -79,16 +118,3 @@ ContinueLoop:
     End With
 
 End Sub
-
-
-'------------- クリップボード取得関数（Windows専用） -------------
-Public Function GetClipboardText() As String
-    Dim DataObj As Object
-    Set DataObj = CreateObject("MSForms.DataObject")
-    On Error GoTo ErrHandler
-    DataObj.GetFromClipboard
-    GetClipboardText = DataObj.GetText(1)
-    Exit Function
-ErrHandler:
-    GetClipboardText = ""
-End Function
